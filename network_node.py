@@ -5,6 +5,8 @@ import hashlib
 import time
 from aioconsole import ainput
 from concurrent.futures import ThreadPoolExecutor
+from tx import *
+from io import BytesIO
 
 ID = 0xabcdeeee
 TARGET = 0x000000000000001fffffffffffffffffffffffffffffffffffffffffffffffff
@@ -151,9 +153,17 @@ class Node:
                     print("For new connection use command: c <host> <port>")
                 
             elif cmd[0] == 't':
-                value = cmd[1]
-                await self.spread_signal(self.create_tx(value), None)
+                # value = cmd[1]
+                sender = await ainput("sender address: ")
+                tx_hash = await ainput("tx hash: ")
+                reciever = await ainput("reciever address: ")
+                params = [sender, tx_hash, reciever, 0]
+                await self.spread_signal(self.create_tx(params), None)
                 print("Creating transaction")
+            elif cmd[0] == 'g':
+                reciever = await ainput("reciever address: ")
+                params = ['', '00'*32, reciever, 0xffffffff]
+                await self.spread_signal(self.create_tx(params), None)
             elif cmd[0] == 'b':
                 await self.spread_signal(self.create_block(), None)
                 print("Creating block")
@@ -181,10 +191,13 @@ class Node:
             await self.add_block(payload, addr)
             return
         if command == 0x05:
-            verify_tx = list(filter(lambda tx: tx['id'] == payload['id'], self.tx_pool))
-            if len(verify_tx) == 0:
+            # verify_tx = list(filter(lambda tx: tx['id'] == payload['id'], self.tx_pool))
+            # tx = bytes(payload, 'utf-8')
+            tx = payload
+            verify_tx = tx not in self.tx_pool
+            if verify_tx:
                 node_print("New tx recieved")
-                await self.spread_signal(self.add_new_tx(payload), excluded_addr=addr)
+                await self.spread_signal(self.add_new_tx(tx), excluded_addr=addr)
             return
         if command == 0x06:
             verify_block = list(filter(lambda block: hash_256(block) == hash_256(payload), self.block_chain))
@@ -233,7 +246,9 @@ class Node:
 
     def add_new_block(self, block):
         self.block_chain.append(block)
-        self.tx_pool = []
+        for tx in block['transactions']:
+            self.tx_pool.remove(tx)
+        # self.tx_pool = []
         self.version = len(self.block_chain)
         return self.create_msg(0x06, block)
 
@@ -264,14 +279,13 @@ class Node:
                 search_block = block
         return self.create_msg(0x04, search_block)
 
-    def create_tx(self, value):
-        tx = {
-            'type': 'transaction',
-            'id': '',
-            'time': time.time(),
-            'value': value
-        }
-        tx['id'] = hash_256(tx)
+    def create_tx(self, params):
+        sender_address = params[0]
+        tx_hash = params[1]
+        reciever_address = params[2]
+        index = params[3]
+        tx = create_new_tx(sender_address, tx_hash, reciever_address, index)
+        tx = tx.hex()
         self.tx_pool.append(tx)
         return self.create_msg(0x05, tx)
 
@@ -358,7 +372,9 @@ class Node:
             node_print(str(block))
         node_print("Transaction pool:")
         for tx in self.tx_pool:
-            node_print(str(tx['id'])+ '-' + str(tx['value']))
+            tx = bytes.fromhex(tx)
+            tx = Tx.parse(BytesIO(tx))
+            node_print(str(tx))
         node_print("#####")
     # Function for bytes communication
     @staticmethod

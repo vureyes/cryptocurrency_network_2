@@ -401,7 +401,7 @@ def create_new_tx(sender_address, tx_hash, receiver_address, index=0, amount=100
 
 
 if __name__ == "__main__":
-    tx_create_serialize = (generate_coin_tx('mxCdrNvJeLh2ZV2CQmA2VqRZkJisEjxii8'))
+    tx_create_serialize = generate_coin_tx('mxCdrNvJeLh2ZV2CQmA2VqRZkJisEjxii8')
     tx_1_serialize = create_new_tx('mxCdrNvJeLh2ZV2CQmA2VqRZkJisEjxii8', 'f072f6cafcb15880a5de97023542cc744f6f5cb937fd6cd963e87089cb3100dc', 'n3ZpsZC9NdYXvrv8aZcpfR8vzYJiLoVsqE')
     genesis_tx = Tx.parse(BytesIO(tx_create_serialize))
     tx = Tx.parse(BytesIO(tx_1_serialize))
