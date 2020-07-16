@@ -54,7 +54,7 @@ class Node:
         self.sync_lock = False
         self.last_message = ''
 
-        self.updated = True
+        self.updated = False
         self.block_recieved = False
 
     '''
@@ -126,6 +126,7 @@ class Node:
         loop = asyncio.get_event_loop()
         task = loop.create_task(self.handle_connection(reader, writer))
         writer.write(self.send_version())
+        self.updated = True
 
     '''
     ##################################################
@@ -159,7 +160,7 @@ class Node:
 
     async def read_command(self, encode_message, addr):
         message = self.decode(encode_message)
-        node_print(str(message))
+        # node_print(str(message))
         if 'command' not in message.keys():
             return
         command = message['command']
@@ -202,9 +203,11 @@ class Node:
     async def compare_version(self, version, addr):
         if version < self.version:
             await self.send_signal(self.send_version(),addr)
+            self.updated = True
         elif version == self.version:
-            return 
+            self.updated = True
         else:
+            self.updated = False
             await self.send_signal(self.send_hashes(), addr)
 
     async def complete_block_chain(self, miss_hashes, addr):
@@ -212,7 +215,8 @@ class Node:
             self.miss_hashes = miss_hashes
             next_hash = self.miss_hashes.pop(0)
             await self.send_signal(self.get_data(next_hash), addr)
-        return
+        else:
+            self.updated = True
 
     async def add_block(self, block, addr):
         self.block_chain.append(block)
@@ -220,7 +224,8 @@ class Node:
         if len(self.miss_hashes) > 0:
             next_hash = self.miss_hashes.pop(0)
             await self.send_signal(self.get_data(next_hash), addr)
-        return
+        else:
+            self.updated = True
 
     def add_new_tx(self, tx):
         self.tx_pool.append(tx)
@@ -290,16 +295,12 @@ class Node:
                 'prev_block': hash_256(prev_block),
                 'transactions': transactions
             }
-        # self.tx_pool = []
-        # block = self.mine_block(block)
-        # self.block_chain.append(block)
-        # self.version = len(self.block_chain)
-        # return self.create_msg(0x06, block)
         return block
 
     async def mining_thread(self):
         while True:
             if self.updated:
+                node_print("Mining")
                 pre_block = self.create_block()
                 # node_print("Mining start")
                 block = await self.mine_block(pre_block) # Trata de encontra un nonce que cumpla con el target
@@ -328,7 +329,6 @@ class Node:
                 node_print("Block Mined!!!")
                 return block
             await asyncio.sleep(0)
-        node_print("Mining Failed")
         return None
 
     def verify_block_chain(self):
