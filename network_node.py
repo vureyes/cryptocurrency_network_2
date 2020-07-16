@@ -312,7 +312,7 @@ class Node:
                     self.block_chain.append(block)
                     # Esparcir el bloque
                     await self.spread_signal(self.create_msg(0x06, block))
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.1)
 
 
     async def mine_block(self, block):
